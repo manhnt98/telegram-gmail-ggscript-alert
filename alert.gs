@@ -15,7 +15,7 @@ function main(){
 //Send message to telegram
 function postMessageToTelegram(message) {
   // Provide the Id of your Telegram group or channel
-  const chatId = '<chat-group-id>';
+  const chatId = '<chat-id>';
 
   const BOT_TOKEN = '<bot-token>';
 
@@ -39,6 +39,7 @@ function postMessageToTelegram(message) {
 function processStarredEmails(folderName, file, separator, type) {
   // Replace 'Folder Name' with the name of your Gmail folder that contains starred emails
   var folder = getGmailFolder(folderName);
+  var star = true;
 
   if (folder) {
     var threads = folder.getThreads();
@@ -52,12 +53,18 @@ function processStarredEmails(folderName, file, separator, type) {
 
         if (message.isStarred()) {
           // Do something with the starred message
-          message.unstar();
           extractedPart = extractSubjectPartWithSeparator(message.getSubject(), separator);
-          if (type == 'down')
+          if (type == 'down'){
             editedContent += extractedPart + '\n';
-          else
-            editedContent = removeStringInFile(extractedPart, file);
+            message.unstar();
+          }
+          else{
+            var results = removeStringInFile(extractedPart, file);
+            editedContent = results[0];
+            star = results[1];
+            if (!star)
+              message.unstar();
+          }
         }
       }
     }
@@ -108,21 +115,6 @@ function findFile(fileType, folderName){
   return file;
 }
 
-//Find string in file, remove all line
-function findStringInFile(searchString, editedContent, file) {
-  var fileName = 'DOWN list'; // Replace with the name of the file you want to search in
-
-  if (file.getName() == fileName) {
-    var content = DocumentApp.openById(file.getId()).getBody().getText();
-    if (content.indexOf(searchString) == -1) {
-      editedContent += searchString + '\n';
-    }
-  }
-
-  Logger.log('editedContent down: ' + editedContent);
-  return editedContent;
-}
-
 function getDriveFolder(folderName) {
   var folders = DriveApp.getFoldersByName(folderName);
   if (folders.hasNext()) {
@@ -136,20 +128,29 @@ function removeStringInFile(searchString, file) {
   var fileName = 'DOWN list'; // Replace with the name of the file you want to search in
 
   if (file.getName() == fileName) {
+    var star = false;
     var document = DocumentApp.openById(file.getId());
     var body = document.getBody();
     var text = body.getText().split('\n');
+    var length = text.length;
     Logger.log('lines:  ' + text);
-    var modifiedLines = text.filter(function(line) {
-      return line.indexOf(searchString) == -1;
-    });
-    var modifiedContent = modifiedLines.join('\n');
+    for (var i = 0; i < text.length; i++) {
+      var line = text[i];
+      if (line.indexOf(searchString) !== -1) {
+        text.splice(i, 1); // Remove the line from the array
+        break; // Stop the loop after removing the first occurrence
+      }
+    }
+    if (text.length == length)
+      star = true;
+    var modifiedContent = text.join('\n');
 
     body.setText(modifiedContent);
   }
   var editedContent = body.getText();
   Logger.log('editedContent up: ' + editedContent);
-  return editedContent;
+  var results = [editedContent, star];
+  return results;
 }
 
 //Edit file
@@ -166,3 +167,4 @@ function clearFile(file){
   var body = DocumentApp.openById(file.getId()).getBody();
   body.clear();
 }
+
